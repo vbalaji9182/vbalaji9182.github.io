@@ -147,6 +147,25 @@
       return text;
     }
 
+    function matchReferences(message) {
+      const mapping = [
+        { keywords: ["informed consent", "ICF"], ref: "ICH E6(R3) 3.1 – Informed Consent Process" },
+        { keywords: ["monitor", "monitoring"], ref: "ICH E6(R3) 5.0 – Monitoring Strategy" },
+        { keywords: ["essential document"], ref: "ICH E6(R3) 8.1 – Essential Documents" },
+        { keywords: ["investigator", "PI"], ref: "ICH E6(R3) 4.0 – Investigator Responsibilities" },
+        { keywords: ["safety", "AE", "SAE", "reporting"], ref: "ICH E6(R3) 6.0 – Safety Reporting" },
+        { keywords: ["source data", "data integrity"], ref: "ICH E6(R3) 2.0 – Data Integrity and Management" }
+      ];
+      for (const item of mapping) {
+        for (const word of item.keywords) {
+          if (message.toLowerCase().includes(word)) {
+            return item.ref;
+          }
+        }
+      }
+      return "ICH E6(R3) – Refer to appropriate section based on context.";
+    }
+
     async function sendMessage() {
       const input = document.getElementById("userInput");
       const userMessage = input.value.trim();
@@ -173,24 +192,7 @@
           botReply = "This topic may require review of your internal SOPs. Please consult your study documents or line manager for further clarification.";
         }
 
-        // Dynamic reference assignment
-        const references = {
-          "informed consent": "ICH E6(R3) 2.3 – Informed Consent",
-          "monitoring": "ICH E6(R3) 4.2 – Sponsor Oversight",
-          "essential documents": "ICH E6(R3) 2.6 – Essential Documents",
-          "investigator": "ICH E6(R3) 2.2 – Investigator Responsibilities",
-          "safety reporting": "ICH E6(R3) 2.5 – Safety Information",
-          "source data": "ICH E6(R3) 2.8 – Data Management"
-        };
-
-        let matchedReference = "ICH E6(R3) – Refer to appropriate section based on context.";
-        for (const keyword in references) {
-          if (redactedMessage.toLowerCase().includes(keyword)) {
-            matchedReference = references[keyword];
-            break;
-          }
-        }
-
+        const matchedReference = matchReferences(redactedMessage);
         botReply += `\n\n📘 Reference: ${matchedReference}`;
 
         const unredactedResponse = unredact(botReply);
@@ -210,20 +212,26 @@
 
     function downloadPDF() {
       const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
+      const doc = new jsPDF({ margin: 20 });
       const chatbox = document.getElementById("chatbox");
       const lines = chatbox.innerText.split('\n');
-      let y = 10;
+
+      let y = 20;
       doc.setFontSize(10);
       lines.forEach(line => {
-        if (y > 280) {
-          doc.addPage();
-          y = 10;
-        }
-        doc.text(line, 10, y);
-        y += 6;
+        const splitLines = doc.splitTextToSize(line, 180);
+        splitLines.forEach(subline => {
+          if (y > 280) {
+            doc.addPage();
+            y = 20;
+          }
+          doc.text(subline, 15, y);
+          y += 6;
+        });
       });
-      doc.text('Novotech - Confidential', 10, y + 10);
+
+      if (y + 10 < 280) y += 10;
+      doc.text('Novotech - Confidential', 15, y);
       doc.save("gcp_compliance_chat.pdf");
 
       if (document.getElementById("clearAfterDownload").checked) {
